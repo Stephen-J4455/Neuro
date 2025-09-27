@@ -1,3 +1,4 @@
+PyMuPDF
+python-pptx
 flask
-gunicorn
 huggingface_hub

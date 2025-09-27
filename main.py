@@ -1,7 +1,9 @@
 import os
 import re
 from huggingface_hub import InferenceClient
-
+import requests
+import fitz  # PyMuPDF
+from pptx import Presentation
 
 class NeuroAi:
     def __init__(self):
@@ -17,9 +19,55 @@ class NeuroAi:
         hf_token = os.environ.get("HF_TOKEN")
         self.hf_client = InferenceClient(token=hf_token) if hf_token else None
 
-    def ask(self, prompt, history=[]):
+    def _download_file(self, url):
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as e:
+            print(f"Error downloading file: {e}")
+            return None
+
+    def _extract_text_from_pdf(self, content):
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            return text
+        except Exception as e:
+            print(f"Error extracting text from PDF: {e}")
+            return None
+
+    def _extract_text_from_pptx(self, content):
+        try:
+            from io import BytesIO
+            prs = Presentation(BytesIO(content))
+            text = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        text.append(shape.text)
+            return "\n".join(text)
+        except Exception as e:
+            print(f"Error extracting text from PPTX: {e}")
+            return None
+
+    def ask(self, prompt, history=[], file_url=None):
         if not self.hf_client:
             return "Hugging Face API is not configured."
+
+        file_content = ""
+        if file_url:
+            file_data = self._download_file(file_url)
+            if file_data:
+                if file_url.lower().endswith('.pdf'):
+                    file_content = self._extract_text_from_pdf(file_data)
+                elif file_url.lower().endswith(('.ppt', '.pptx')):
+                    file_content = self._extract_text_from_pptx(file_data)
+
+        if file_content:
+            prompt = f"Use the following content to answer the question: {file_content}\n\nQuestion: {prompt}"
 
         messages = []
         for message in history:
