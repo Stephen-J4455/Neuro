@@ -2,3 +2,4 @@ PyMuPDF
 python-pptx
 flask
 huggingface_hub
+gunicorn
